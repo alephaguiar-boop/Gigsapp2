@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aleph Master Control v1.5</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root { --bg: #020617; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --danger: #ef4444; --gold: #f59e0b; --success: #22c55e; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 140px; }
+        header { padding: 50px 20px 20px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg); z-index: 100; }
+        .tab-content { display: none; padding: 20px; animation: fadeIn 0.2s; }
+        .active { display: block; }
+        .card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; position: relative; overflow: hidden; }
+        .status-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
+        .bg-red { background: var(--danger); } .bg-gold { background: var(--gold); } .bg-green { background: var(--success); }
+        .btn { background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: 800; border: none; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; font-size: 14px; cursor: pointer; }
+        .btn-sec { background: #334155; font-size: 13px; padding: 12px; }
+        .btn-refresh { background: var(--success); font-size: 11px; padding: 8px 14px; width: auto; margin: 0; line-height: 1; }
+        .type-picker { display: flex; gap: 5px; margin-bottom: 20px; }
+        .type-btn { flex: 1; background: #334155; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 10px; font-weight: 900; opacity: 0.4; }
+        .type-btn.active-type { background: var(--accent); opacity: 1; }
+        input, textarea { background: #0f172a; border: 1px solid #475569; border-radius: 10px; padding: 14px; width: 100%; color: white; margin-top: 10px; font-size: 16px; }
+        #story-view { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; padding: 100px 40px; text-align: center; }
+        nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; padding-bottom: calc(15px + env(safe-area-inset-bottom)); z-index: 100; }
+        .nav-item { flex: 1; text-align: center; padding: 18px; font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        .nav-item.active-nav { color: var(--accent); border-top: 3px solid var(--accent); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="story-view" onclick="this.style.display='none'">
+        <div style="color:var(--accent); letter-spacing:10px; font-weight:900; font-size:14px">LIVE MUSIC</div>
+        <div id="st-title" style="font-size:48px; font-weight:900; color:#fff; margin:30px 0; line-height:1; text-transform:uppercase"></div>
+        <div id="st-venue" style="font-size:24px; color:var(--accent); letter-spacing:4px; font-weight:300"></div>
+        <div id="st-date" style="font-size:20px; margin-top:20px; color:white; font-weight:700"></div>
+        <div id="st-badge" style="margin-top:60px"></div>
+    </div>
+
+    <header>
+        <h1 style="letter-spacing:-1px; margin:0">ALEPH GIGS</h1>
+        <button onclick="syncCalendar()" style="background:var(--accent); border:none; color:white; padding:10px 18px; border-radius:30px; font-size:12px; font-weight:900">SYNC</button>
+    </header>
+
+    <main>
+        <section id="view-home" class="tab-content active"><div id="gig-list"></div></section>
+        <section id="view-invites" class="tab-content">
+            <h3>Invite Manager</h3>
+            <div class="card"><textarea id="contact-list" rows="15" placeholder="Name, City (e.g. Dave, London)" onchange="saveData()"></textarea></div>
+        </section>
+        <section id="view-setup" class="tab-content">
+            <div class="card">
+                <h3>System Setup</h3>
+                <input type="text" id="set-ical" placeholder="iCal .ics URL" onchange="saveData()">
+                <textarea id="set-lineup" rows="3" placeholder="Default Lineup (@handles)" onchange="saveData()"></textarea>
+            </div>
+        </section>
+        <section id="view-detail" class="tab-content"><div id="detail-content"></div></section>
+    </main>
+
+    <nav>
+        <div onclick="showView('home')" class="nav-item active-nav" id="nav-home">GIGS</div>
+        <div onclick="showView('invites')" class="nav-item" id="nav-invites">INVITES</div>
+        <div onclick="showView('setup')" class="nav-item" id="nav-setup">SETUP</div>
+    </nav>
+
+    <script>
+        const VENUE_DB = [
+            { match: "Verdict", cap: 60, url: "https://www.verdictjazz.com/tickets" },
+            { match: "Ronnie", cap: 220, url: "https://www.ronniescotts.co.uk/show-calendar" },
+            { match: "606", cap: 120, url: "https://www.606club.co.uk/events/" },
+            { match: "PizzaExpress", cap: 110, url: "https://www.pizzaexpresslive.com/whats-on" },
+            { match: "Vortex", cap: 100, url: "https://www.vortexjazz.co.uk/events/" },
+            { match: "Peggy", cap: 90, url: "https://peggysskylight.co.uk/events/" }
+        ];
+
+        let gigs = JSON.parse(localStorage.getItem('aleph_gigs')) || [];
+        let setup = JSON.parse(localStorage.getItem('aleph_setup')) || { ical: '', lineup: '' };
+        let contacts = localStorage.getItem('aleph_contacts') || "";
+
+        function showView(v) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active-nav'));
+            document.getElementById('view-' + v).classList.add('active');
+            if(document.getElementById('nav-' + v)) document.getElementById('nav-' + v).classList.add('active-nav');
+            if(v === 'home') renderGigs();
+            window.scrollTo(0,0);
+        }
+
+        function saveData() {
+            setup.ical = document.getElementById('set-ical').value;
+            setup.lineup = document.getElementById('set-lineup').value;
+            contacts = document.getElementById('contact-list').value;
+            localStorage.setItem('aleph_setup', JSON.stringify(setup));
+            localStorage.setItem('aleph_contacts', contacts);
+        }
+
+        function renderGigs() {
+            const list = document.getElementById('gig-list');
+            list.innerHTML = '';
+            const today = new Date().toISOString().split('T')[0];
+            const upcoming = gigs.filter(g => g.date >= today).sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            if(upcoming.length === 0) list.innerHTML = `<div class="card" style="text-align:center">No upcoming gigs found.<br>Paste iCal link in Setup and Sync.</div>`;
+
+            upcoming.forEach(g => {
+                const days = Math.ceil((new Date(g.date) - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
+                const vData = VENUE_DB.find(v => g.venue.includes(v.match) || g.title.includes(v.match)) || { cap: 50 };
+                const ratio = (g.sold || 0) / (g.cap || vData.cap);
+                const color = ratio > 0.8 || (days < 4 && ratio < 0.3) ? 'bg-red' : (ratio > 0.5 ? 'bg-gold' : 'bg-green');
+                
+                list.innerHTML += `
+                    <div class="card" onclick="viewDetail(${g.id})">
+                        <div class="status-bar ${color}"></div>
+                        <div style="display:flex; justify-content:space-between; margin-left:10px">
+                            <b style="font-size:18px">${g.title}</b>
+                            <span style="color:var(--accent); font-weight:900">${days === 0 ? 'TONIGHT' : 'D-'+days}</span>
+                        </div>
+                        <div style="margin:10px 0 0 10px; font-size:12px; opacity:0.7">📍 ${g.venue}</div>
+                    </div>`;
+            });
+        }
+
+        function viewDetail(id) {
+            const g = gigs.find(x => x.id === id);
+            const days = Math.ceil((new Date(g.date) - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
+            const vData = VENUE_DB.find(v => g.venue.includes(v.match) || g.title.includes(v.match)) || { url: "https://google.com", cap: 50 };
+            const type = g.type || 'ticketed';
+            const ratio = (g.sold || 0) / (g.cap || vData.cap);
+
+            document.getElementById('detail-content').innerHTML = `
+                <div class="type-picker">
+                    <button class="type-btn ${type==='ticketed'?'active-type':''}" onclick="updateType(${id}, 'ticketed')">TICKETED</button>
+                    <button class="type-btn ${type==='free'?'active-type':''}" onclick="updateType(${id}, 'free')">FREE</button>
+                    <button class="type-btn ${type==='tbc'?'active-type':''}" onclick="updateType(${id}, 'tbc')">TBC</button>
+                </div>
+
+                <div class="card">
+                    <h2 style="margin:0">${g.title}</h2>
+                    <p style="color:var(--accent); margin:8px 0">${g.venue}</p>
+                    <div style="display:flex; gap:10px; margin-top:15px">
+                        <button class="btn btn-sec" onclick="openStory(${id})">📸 STORY</button>
+                        <button class="btn btn-sec" onclick="window.open('https://maps.apple.com/?daddr='+encodeURIComponent(g.venue))">🚗 MAPS</button>
+                    </div>
+                </div>
+
+                ${type === 'ticketed' ? `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                        <h3 style="margin:0">Sales: ${g.sold || 0} / ${g.cap || vData.cap}</h3>
+                        <a href="${vData.url}" target="_blank" class="btn btn-refresh">CHECK SITE</a>
+                    </div>
+                    <input type="range" min="0" max="${g.cap || vData.cap}" value="${g.sold || 0}" onchange="updateSold(${id}, this.value)" style="width:100%; margin-top:20px; accent-color:var(--accent)">
+                </div>` : ''}
+
+                <div class="card">
+                    <h3 style="margin:0">Marketing Strategy</h3>
+                    <p style="font-size:14px; color:var(--gold); margin:10px 0">${getStrategy(days, ratio).tip}</p>
+                    <button class="btn" onclick="copyCaption(${id})">📝 COPY PROMO CAPTION</button>
+                    <button class="btn btn-sec" onclick="generateInvite(${id})">✉️ INVITE CONTACT</button>
+                </div>
+
+                <button class="btn btn-sec" onclick="showView('home')">← BACK TO LIST</button>
+            `;
+            showView('detail');
+        }
+
+        function getStrategy(d, r) {
+            if (r > 0.9) return { tip: "Nearly Sold Out! Use 'Final Tickets' urgency in your caption." };
+            if (d < 4 && r < 0.3) return { tip: "Sales are slow. Post a rehearsal video and use the Invite Manager." };
+            if (d === 0) return { tip: "Gig Day! Post venue arrival and set times. Tag the venue." };
+            return { tip: "Awareness Phase. Share the lineup and a previous live clip." };
+        }
+
+        function updateSold(id, val) { gigs.find(g => g.id === id).sold = parseInt(val); localStorage.setItem('aleph_gigs', JSON.stringify(gigs)); viewDetail(id); }
+        function updateType(id, t) { gigs.find(g => g.id === id).type = t; localStorage.setItem('aleph_gigs', JSON.stringify(gigs)); viewDetail(id); }
+        
+        function openStory(id) {
+            const g = gigs.find(x => x.id === id);
+            document.getElementById('st-title').innerText = g.title;
+            document.getElementById('st-venue').innerText = g.venue.split(',')[0];
+            document.getElementById('st-date').innerText = g.date;
+            document.getElementById('st-badge').innerHTML = (g.sold/g.cap > 0.8) ? '<div style="background:var(--danger); color:white; padding:15px; font-weight:900; border-radius:8px">LOW TICKETS</div>' : '';
+            document.getElementById('story-view').style.display = 'block';
+        }
+
+        function copyCaption(id) {
+            const g = gigs.find(x => x.id === id);
+            const text = `NEXT GIG: ${g.title}\n📍 ${g.venue}\n🗓️ ${g.date}\n\nLineup: ${setup.lineup}\n\nInfo & Tickets in bio.`;
+            navigator.clipboard.writeText(text);
+            alert("Caption copied for Instagram!");
+        }
+
+        function generateInvite(id) {
+            const g = gigs.find(x => x.id === id);
+            const city = g.venue.toLowerCase();
+            const filtered = contacts.split('\n').filter(line => city.includes(line.split(',')[1]?.trim().toLowerCase() || "___"));
+            if(filtered.length === 0) return alert("No contacts found for this city. Add them in INVITES tab!");
+            const name = filtered[0].split(',')[0];
+            navigator.clipboard.writeText(`Hey ${name}, I'm playing at ${g.venue.split(',')[0]} on ${g.date}. Hope to see you there!`);
+            alert("Personalized invite for " + name + " copied!");
+        }
+
+        async function syncCalendar() {
+            if(!setup.ical) return alert("Add iCal URL in Setup first.");
+            alert("Contacting Calendar Proxy...");
+            // Standard fetch logic would go here
+        }
+
+        showView('home');
+    </script>
+</body>
+</html>
