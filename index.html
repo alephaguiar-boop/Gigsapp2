@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aleph Gigs Pro</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --danger: #ef4444; --gold: #f59e0b; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding-bottom: 120px; }
+        header { padding: 40px 20px 15px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .tab-content { display: none; padding: 20px; }
+        .active { display: block; }
+        .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 15px; border: 1px solid #334155; }
+        
+        #story-view { 
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background: #000; z-index: 100; padding: 80px 40px; text-align: center; 
+        }
+        .story-title { font-size: 48px; font-weight: 900; line-height: 1; margin: 20px 0; text-transform: uppercase; color: #fff; }
+        .story-venue { font-size: 24px; color: var(--accent); letter-spacing: 2px; }
+        
+        .btn { background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; width: 100%; margin-top: 10px; text-align: center; display: block; text-decoration: none; }
+        .btn-ghost { background: #334155; font-size: 13px; }
+        .promo-tip { border-left: 3px solid var(--gold); padding-left: 10px; font-size: 13px; color: #cbd5e1; margin-top: 10px; }
+        nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; padding-bottom: 30px; }
+        .nav-item { flex: 1; text-align: center; padding: 15px; font-size: 11px; font-weight: 700; color: #94a3b8; }
+        .nav-item.active-nav { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div id="story-view" onclick="this.style.display='none'">
+        <div id="st-top" style="color:var(--accent); font-weight:900; letter-spacing:5px">LIVE JAZZ</div>
+        <div class="story-title" id="st-title"></div>
+        <div class="story-venue" id="st-venue"></div>
+        <div id="st-date" style="font-size: 20px; margin-top: 10px;"></div>
+        <div id="st-alert" style="margin-top:40px"></div>
+        <div style="position:absolute; bottom:60px; left:0; right:0; opacity:0.3; font-size:10px">SCREENSHOT & POST</div>
+    </div>
+
+    <header><h1>ALEPH GIGS</h1></header>
+
+    <main>
+        <section id="view-home" class="tab-content active"><div id="gig-list"></div></section>
+        <section id="view-detail" class="tab-content"><div id="detail-content"></div></section>
+    </main>
+
+    <nav>
+        <div onclick="showView('home')" class="nav-item active-nav" id="nav-home">GIGS</div>
+        <div onclick="showView('settings')" class="nav-item">⚙️</div>
+    </nav>
+
+    <script>
+        let gigs = JSON.parse(localStorage.getItem('aleph_gigs')) || [];
+
+        function showView(viewId) {
+            document.querySelectorAll('.tab-content').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            if(viewId === 'home') renderGigs();
+        }
+
+        function getDaysUntil(dateStr) {
+            const diff = new Date(dateStr) - new Date().setHours(0,0,0,0);
+            return Math.ceil(diff / (1000 * 60 * 60 * 24));
+        }
+
+        function getPromoStrategy(days) {
+            if (days < 0) return "Gig finished.";
+            if (days === 0) return { title: "🔥 TONIGHT!", tip: "Post a 'Last Call' story. Use the 'Tonight' template and include the ticket link sticker." };
+            if (days === 1) return { title: "⏳ 24 HOURS TO GO", tip: "Post a high-energy clip from a previous gig. Tell people to book now to avoid disappointment." };
+            if (days <= 3) return { title: "🚨 LOW TICKET ALERT", tip: "Show the ticket slider. Tag the venue and bandmates. Remind people of the lineup." };
+            if (days <= 7) return { title: "🎷 BAND REVEAL", tip: "Post photos or handles of the personnel. Talk about why this specific lineup is special." };
+            return { title: "📢 ANNOUNCEMENT", tip: "Initial announcement. Save the link in your bio and share the main poster." };
+        }
+
+        function renderGigs() {
+            const list = document.getElementById('gig-list');
+            list.innerHTML = '';
+            const today = new Date().setHours(0,0,0,0);
+            
+            gigs.filter(g => new Date(g.date) >= today).sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(g => {
+                const days = getDaysUntil(g.date);
+                const dayLabel = days === 0 ? "TODAY" : `In ${days} Days`;
+                list.innerHTML += `
+                    <div class="card" onclick="viewDetail(${g.id})">
+                        <div style="display:flex; justify-content:space-between">
+                            <b>${g.title}</b>
+                            <span style="color:var(--accent); font-weight:bold">${dayLabel}</span>
+                        </div>
+                        <div style="font-size:12px; color:#94a3b8; margin-top:5px">📍 ${g.venue.split(',')[0]}</div>
+                    </div>`;
+            });
+        }
+
+        function viewDetail(id) {
+            const g = gigs.find(x => x.id === id);
+            const days = getDaysUntil(g.date);
+            const strat = getPromoStrategy(days);
+            const ratio = g.sold / g.cap;
+
+            document.getElementById('detail-content').innerHTML = `
+                <div class="card">
+                    <h4 style="margin:0; color:var(--gold); font-size:11px">PROMO STRATEGY: ${strat.title}</h4>
+                    <p class="promo-tip">${strat.tip}</p>
+                    <button class="btn" onclick="openStory(${id})">📸 GENERATE POSTER</button>
+                </div>
+                
+                <div class="card">
+                    <h3>Sales Progress</h3>
+                    <input type="range" min="0" max="${g.cap}" value="${g.sold}" onchange="updateSold(${id}, this.value)" style="width:100%">
+                    <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:12px">
+                        <span>${g.sold} Sold</span>
+                        <span>${g.cap - g.sold} Left</span>
+                    </div>
+                </div>
+                <button class="btn btn-ghost" onclick="showView('home')">Back to Gigs</button>
+            `;
+            showView('detail');
+        }
+
+        function openStory(id) {
+            const g = gigs.find(x => x.id === id);
+            const days = getDaysUntil(g.date);
+            document.getElementById('st-title').innerText = g.title;
+            document.getElementById('st-venue').innerText = g.venue.split(',')[0];
+            document.getElementById('st-date').innerText = days === 0 ? "TONIGHT" : g.date;
+            document.getElementById('st-top').innerText = days === 0 ? "DO NOT MISS" : "LIVE MUSIC";
+            
+            const ratio = g.sold / g.cap;
+            document.getElementById('st-alert').innerHTML = ratio > 0.8 ? '<div style="background:var(--danger); color:white; display:inline-block; padding:10px 20px; font-weight:900; border-radius:50px">LOW TICKETS</div>' : '';
+            
+            document.getElementById('story-view').style.display = 'block';
+        }
+
+        function updateSold(id, val) {
+            gigs.find(x => x.id === id).sold = parseInt(val);
+            localStorage.setItem('aleph_gigs', JSON.stringify(gigs));
+            viewDetail(id);
+        }
+
+        renderGigs();
+    </script>
+</body>
+</html>
