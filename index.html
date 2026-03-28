@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aleph Master v1.3</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <style>
+        :root { --bg: #020617; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --danger: #ef4444; --gold: #f59e0b; --success: #22c55e; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding-bottom: 120px; }
+        header { padding: 45px 20px 15px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg); z-index: 100; }
+        .tab-content { display: none; padding: 20px; }
+        .active { display: block; }
+        .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 15px; border: 1px solid #334155; position: relative; }
+        .btn { background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; font-size: 14px; box-sizing: border-box; }
+        .btn-refresh { background: var(--success); font-size: 11px; padding: 10px 15px; width: auto; margin: 0; }
+        nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { flex: 1; text-align: center; padding: 15px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
+        .nav-item.active-nav { color: var(--accent); border-top: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ALEPH MASTER</h1>
+        <button onclick="renderGigs()" style="background:var(--accent); border:none; color:white; padding:8px 16px; border-radius:20px; font-size:11px; font-weight:900">REFRESH LIST</button>
+    </header>
+
+    <main>
+        <section id="view-home" class="tab-content active"><div id="gig-list"></div></section>
+        <section id="view-detail" class="tab-content"><div id="detail-content"></div></section>
+    </main>
+
+    <nav>
+        <div onclick="showView('home')" class="nav-item active-nav" id="nav-home">Gigs</div>
+    </nav>
+
+    <script>
+        // MASTER VENUE DATABASE (Fixed Links)
+        const VENUE_DB = [
+            { match: "Verdict", cap: 60, url: "https://www.verdictjazz.com/tickets" },
+            { match: "Ronnie", cap: 220, url: "https://www.ronniescotts.co.uk/show-calendar" },
+            { match: "606", cap: 120, url: "https://www.606club.co.uk/events/" },
+            { match: "PizzaExpress", cap: 110, url: "https://www.pizzaexpresslive.com/whats-on" },
+            { match: "Vortex", cap: 100, url: "https://www.vortexjazz.co.uk/events/" },
+            { match: "Peggy", cap: 90, url: "https://peggysskylight.co.uk/events/" }
+        ];
+
+        let gigs = JSON.parse(localStorage.getItem('aleph_gigs')) || [
+            { id: 1, title: "Jazz at The Verdict", venue: "The Verdict, Brighton", date: "2026-04-10", sold: 5, cap: 60 }
+        ];
+
+        function showView(view) {
+            document.querySelectorAll('.tab-content').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active-nav'));
+            document.getElementById('view-' + view).classList.add('active');
+            if(view === 'home') renderGigs();
+        }
+
+        function renderGigs() {
+            const list = document.getElementById('gig-list');
+            list.innerHTML = gigs.map(g => `
+                <div class="card" onclick="viewDetail(${g.id})">
+                    <b>${g.title}</b><br>
+                    <small style="opacity:0.6">📍 ${g.venue}</small>
+                </div>
+            `).join('');
+        }
+
+        function viewDetail(id) {
+            const g = gigs.find(x => x.id === id);
+            
+            // Smart Match Logic: Search Title or Venue for keywords
+            const vInfo = VENUE_DB.find(v => 
+                g.venue.toLowerCase().includes(v.match.toLowerCase()) || 
+                g.title.toLowerCase().includes(v.match.toLowerCase())
+            ) || { url: "https://google.com", cap: 50 };
+
+            document.getElementById('detail-content').innerHTML = `
+                <div class="card">
+                    <h2>${g.title}</h2>
+                    <p style="color:var(--accent)">${g.venue}</p>
+                </div>
+
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px">
+                        <h3>Tickets: ${g.sold} / ${vInfo.cap}</h3>
+                        <a href="${vInfo.url}" target="_blank" class="btn btn-refresh">CHECK TICKETS SITE</a>
+                    </div>
+                    <input type="range" min="0" max="${vInfo.cap}" value="${g.sold}" onchange="updateSold(${id}, this.value)" style="width:100%">
+                </div>
+
+                <button class="btn" onclick="showView('home')">BACK TO LIST</button>
+            `;
+            showView('detail');
+        }
+
+        function updateSold(id, val) {
+            const gig = gigs.find(g => g.id === id);
+            gig.sold = parseInt(val);
+            localStorage.setItem('aleph_gigs', JSON.stringify(gigs));
+            viewDetail(id);
+        }
+
+        renderGigs();
+    </script>
+</body>
+</html>
