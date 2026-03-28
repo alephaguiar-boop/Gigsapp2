@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aleph Gigs Ultimate</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --danger: #ef4444; --gold: #f59e0b; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding-bottom: 120px; overflow-x: hidden; }
+        header { padding: 45px 20px 15px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+        .tab-content { display: none; padding: 20px; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .active { display: block; }
+        .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 15px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -1px; color: var(--accent); }
+        
+        /* Story Mode Overlay */
+        #story-view { 
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background: linear-gradient(180deg, #000 0%, #0f172a 100%); z-index: 1000; padding: 80px 40px; text-align: center; 
+        }
+        .story-title { font-size: 44px; font-weight: 900; line-height: 1; margin: 25px 0; text-transform: uppercase; color: #fff; text-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+        .story-venue { font-size: 22px; color: var(--accent); letter-spacing: 3px; font-weight: 300; }
+        
+        input, textarea { background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 14px; width: 100%; color: white; box-sizing: border-box; margin-top: 8px; font-size: 16px; }
+        .btn { background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; }
+        .btn-sec { background: #334155; font-size: 13px; padding: 10px; }
+        .promo-tip { border-left: 3px solid var(--gold); padding-left: 12px; font-size: 13px; color: #cbd5e1; margin: 10px 0; font-style: italic; }
+        
+        nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; padding-bottom: calc(10px + env(safe-area-inset-bottom)); backdrop-filter: blur(10px); }
+        .nav-item { flex: 1; text-align: center; padding: 15px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
+        .nav-item.active-nav { color: var(--accent); border-top: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div id="story-view" onclick="this.style.display='none'">
+        <div id="st-top" style="color:var(--accent); font-weight:900; letter-spacing:6px; font-size:14px">LIVE MUSIC</div>
+        <div class="story-title" id="st-title"></div>
+        <div class="story-venue" id="st-venue"></div>
+        <div id="st-date" style="font-size: 18px; margin-top: 15px; font-weight: 700;"></div>
+        <div id="st-alert" style="margin-top:40px"></div>
+        <div style="position:absolute; bottom:60px; left:0; right:0; opacity:0.4; font-size:11px; letter-spacing:1px">SCREENSHOT & SHARE</div>
+    </div>
+
+    <header>
+        <h1>ALEPH GIGS</h1>
+        <button onclick="syncCalendar()" style="background:var(--accent); color:white; border:none; padding:6px 14px; border-radius:20px; font-size:11px; font-weight:bold">SYNC</button>
+    </header>
+
+    <main>
+        <section id="view-home" class="tab-content active"><div id="gig-list"></div></section>
+        
+        <section id="view-settings" class="tab-content">
+            <div class="card">
+                <h3 style="margin-top:0">iCal Sync</h3>
+                <input type="text" id="setting-ical" placeholder="Paste .ics link" onchange="saveSettings()">
+                <h3>Default Personnel</h3>
+                <textarea id="setting-personnel" rows="3" placeholder="@handles" onchange="saveSettings()"></textarea>
+                <h3>Venue Overrides</h3>
+                <textarea id="setting-venues" rows="3" placeholder="Venue, Cap, Link" onchange="saveSettings()"></textarea>
+            </div>
+        </section>
+
+        <section id="view-detail" class="tab-content"><div id="detail-content"></div></section>
+    </main>
+
+    <nav>
+        <div onclick="showView('home')" class="nav-item active-nav" id="nav-home">GIGS</div>
+        <div onclick="showView('settings')" class="nav-item" id="nav-settings">SETTINGS</div>
+    </nav>
+
+    <script>
+        let gigs = JSON.parse(localStorage.getItem('aleph_gigs')) || [];
+        let settings = JSON.parse(localStorage.getItem('aleph_settings')) || { ical: '', personnel: '', venues: '' };
+
+        const VENUE_LIBRARY = [
+            { name: "Ronnie Scott", cap: 220, link: "https://www.ronniescotts.co.uk" },
+            { name: "606 Club", cap: 120, link: "https://www.606club.co.uk" },
+            { name: "The Verdict", cap: 60, link: "https://www.verdictjazz.com" },
+            { name: "PizzaExpress Soho", cap: 110, link: "https://www.pizzaexpresslive.com" },
+            { name: "Vortex", cap: 100, link: "https://www.vortexjazz.org" },
+            { name: "Peggy's Skylight", cap: 90, link: "https://peggysskylight.co.uk" }
+        ];
+
+        function showView(viewId) {
+            document.querySelectorAll('.tab-content').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active-nav'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            document.getElementById('nav-' + viewId).classList.add('active-nav');
+            if(viewId === 'home') renderGigs();
+            if(viewId === 'settings') {
+                document.getElementById('setting-ical').value = settings.ical;
+                document.getElementById('setting-personnel').value = settings.personnel;
+                document.getElementById('setting-venues').value = settings.venues;
+            }
+        }
+
+        function saveSettings() {
+            settings.ical = document.getElementById('setting-ical').value;
+            settings.personnel = document.getElementById('setting-personnel').value;
+            settings.venues = document.getElementById('setting-venues').value;
+            localStorage.setItem('aleph_settings', JSON.stringify(settings));
+        }
+
+        function getDaysUntil(dateStr) {
+            const diff = new Date(dateStr) - new Date().setHours(0,0,0,0);
+            return Math.ceil(diff / (1000 * 60 * 60 * 24));
+        }
+
+        function renderGigs() {
+            const list = document.getElementById('gig-list');
+            list.innerHTML = '';
+            const today = new Date().toISOString().split('T')[0];
+            const upcoming = gigs.filter(g => g.date >= today).sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            if (upcoming.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:50px">No upcoming gigs.</p>';
+
+            upcoming.forEach((g, i) => {
+                const days = getDaysUntil(g.date);
+                const dayLabel = days === 0 ? "TODAY" : `In ${days} Days`;
+                list.innerHTML += `
+                    <div class="card" onclick="viewDetail(${g.id})" style="${i===0?'border-left:4px solid var(--accent)':''}">
+                        <div style="display:flex; justify-content:space-between; align-items:start">
+                            <div>
+                                <b style="font-size:18px">${g.title}</b><br>
+                                <span style="font-size:13px; color:#94a3b8">📍 ${g.venue.split(',')[0]}</span>
+                            </div>
+                            <div style="text-align:right">
+                                <span style="color:var(--accent); font-weight:800; font-size:12px">${dayLabel}</span><br>
+                                <span style="font-size:11px; opacity:0.6">${g.date}</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function viewDetail(id) {
+            const g = gigs.find(x => x.id === id);
+            const days = getDaysUntil(g.date);
+            const pText = g.personnel || settings.personnel;
+            const ratio = g.sold / g.cap;
+            const mapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(g.venue)}`;
+
+            document.getElementById('detail-content').innerHTML = `
+                <div class="card">
+                    <h2 style="margin:0">${g.title}</h2>
+                    <p style="color:var(--accent); font-weight:bold; margin:5px 0">${g.venue}</p>
+                    <a href="${mapsUrl}" class="btn btn-sec">🚗 GET DIRECTIONS</a>
+                    
+                    <div style="margin-top:20px">
+                        <input type="range" min="0" max="${g.cap}" value="${g.sold}" onchange="updateSold(${id}, this.value)" style="width:100%">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:5px">
+                            <span>${g.sold} Sold</span>
+                            <span>${g.cap - g.sold} Left</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4 style="margin:0; color:var(--gold); font-size:11px">STRATEGY: ${days===0?'TONIGHT':'D-'+days}</h4>
+                    <p class="promo-tip">${days===0?'Post "Tonight" Story now. Use the link sticker.':'Focus on ' + (days<3?'ticket scarcity':'lineup tags') + '.'}</p>
+                    <button class="btn" onclick="openStory(${id})">📸 PREVIEW STORY POSTER</button>
+                </div>
+
+                <div class="card" style="background:#0f172a">
+                    <p id="cap-box" style="font-size:13px; white-space:pre-wrap">Next up: ${g.title}!\n📍 ${g.venue}\n🗓️ ${g.date}\n\nFeaturing: ${pText}\n\nTickets: ${g.link || '[Link]'}</p>
+                    <button class="btn btn-sec" onclick="copyCap()">COPY CAPTION</button>
+                    <button class="btn btn-sec" style="margin-top:8px" onclick="editPersonnel(${id})">✏️ EDIT LINEUP</button>
+                </div>
+            `;
+            showView('detail');
+        }
+
+        function openStory(id) {
+            const g = gigs.find(x => x.id === id);
+            const days = getDaysUntil(g.date);
+            document.getElementById('st-title').innerText = g.title;
+            document.getElementById('st-venue').innerText = g.venue.split(',')[0];
+            document.getElementById('st-date').innerText = days === 0 ? "TONIGHT" : g.date.toUpperCase();
+            const ratio = g.sold / g.cap;
+            document.getElementById('st-alert').innerHTML = ratio > 0.8 ? '<div style="background:var(--danger); color:white; padding:10px 20px; font-weight:900; border-radius:4px">LOW TICKETS</div>' : '';
+            document.getElementById('story-view').style.display = 'block';
+        }
+
+        async function syncCalendar() {
+            if(!settings.ical) return alert("Add iCal link in Settings!");
+            try {
+                const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(settings.ical));
+                const text = await res.text();
+                const events = text.split("BEGIN:VEVENT").slice(1);
+                events.forEach(ev => {
+                    const title = ev.match(/SUMMARY:(.*)/)?.[1]?.trim();
+                    const start = ev.match(/DTSTART[:;](?:VALUE=DATE:)?(\d+T\d+|\d+)/)?.[1];
+                    const loc = ev.match(/LOCATION:(.*)/)?.[1]?.trim() || "TBC";
+                    if(title && start) {
+                        const date = `${start.substring(0,4)}-${start.substring(4,6)}-${start.substring(6,8)}`;
+                        if(!gigs.find(g => g.title === title && g.date === date)) {
+                            const vMatch = findVenueData(loc);
+                            gigs.push({id: Date.now()+Math.random(), title, venue: loc, date, sold: 0, cap: vMatch.cap, link: vMatch.link});
+                        }
+                    }
+                });
+                localStorage.setItem('aleph_gigs', JSON.stringify(gigs));
+                renderGigs();
+                alert("Synced!");
+            } catch(e) { alert("Sync Error"); }
+        }
+
+        function findVenueData(locName) {
+            const customLines = settings.venues.split('\n');
+            for(let line of customLines) {
+                const parts = line.split(',').map(s => s.trim());
+                if(parts.length >= 2 && locName.toLowerCase().includes(parts[0].toLowerCase())) {
+                    return { cap: parseInt(parts[1]) || 50, link: parts[2] || '' };
+                }
+            }
+            const found = VENUE_LIBRARY.find(v => locName.toLowerCase().includes(v.name.toLowerCase()));
+            return found || { cap: 50, link: '' };
+        }
+
+        function updateSold(id, val) { gigs.find(g => g.id === id).sold = parseInt(val); localStorage.setItem('aleph_gigs', JSON.stringify(gigs)); viewDetail(id); }
+        function editPersonnel(id) { const g = gigs.find(x => x.id === id); const val = prompt("Lineup:", g.personnel || settings.personnel); if(val !== null) { g.personnel = val; localStorage.setItem('aleph_gigs', JSON.stringify(gigs)); viewDetail(id); } }
+        function copyCap() { navigator.clipboard.writeText(document.getElementById('cap-box').innerText); alert("Copied!"); }
+        renderGigs();
+    </script>
+</body>
+</html>
